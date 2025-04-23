@@ -1,32 +1,61 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:weather_app/model/weather_model.dart';
+import 'package:weather_app/service/api_service/weather_api_service.dart';
 import 'package:weather_app/service/bloc/weather_bloc/weather_event.dart';
 import 'package:weather_app/service/bloc/weather_bloc/weather_state.dart';
 
 class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
+  final WeatherApiService _weatherApiService = WeatherApiService();
+
   WeatherBloc() : super(WeatherInitialState()) {
-    on<SearchCityEvent>(searchCity);
-    on<FetchWeatherEvent>(fetchWeather);
-    on<FetchWeatherByCoordinatesEvent>(fetchWeatherByCoordinates);
+    on<SearchCityEvent>(_searchCity);
+    on<FetchWeatherEvent>(_fetchWeather);
+    on<FetchWeatherByCoordinatesEvent>(_fetchWeatherByCoordinates);
   }
 
-  searchCity(SearchCityEvent event, Emitter<WeatherState> emit) {
-    print('Searching city: ${event.city}');
-    // Implement API call with city name
+  Future<void> _searchCity(
+    SearchCityEvent event,
+    Emitter<WeatherState> emit,
+  ) async {
+    emit(WeatherLoadingState());
+    try {
+      final WeatherModel weather = await _weatherApiService.getWeatherByCity(
+        event.city,
+      );
+      emit(WeatherLoadedState(weather));
+    } catch (e) {
+      emit(WeatherErrorState(e.toString()));
+    }
   }
 
-  fetchWeather(FetchWeatherEvent event, Emitter<WeatherState> emit) {
-    print('Fetching weather with default parameters');
+  Future<void> _fetchWeather(
+    FetchWeatherEvent event,
+    Emitter<WeatherState> emit,
+  ) async {
+    // You could implement a default location fetch here
+    emit(WeatherLoadingState());
+    try {
+      // Using a default city as an example
+      final WeatherModel weather = await _weatherApiService.getWeatherByCity(
+        'London',
+      );
+      emit(WeatherLoadedState(weather));
+    } catch (e) {
+      emit(WeatherErrorState(e.toString()));
+    }
   }
 
-  fetchWeatherByCoordinates(
+  Future<void> _fetchWeatherByCoordinates(
     FetchWeatherByCoordinatesEvent event,
     Emitter<WeatherState> emit,
-  ) {
-    print(
-      'Fetching weather for coordinates: ${event.latitude}, ${event.longitude}',
-    );
-    // Implement API call with coordinates
-    // For now we'll just emit a success state
-    emit(WeatherCitySuccessState());
+  ) async {
+    emit(WeatherLoadingState());
+    try {
+      final WeatherModel weather = await _weatherApiService
+          .getWeatherByCoordinates(event.latitude, event.longitude);
+      emit(WeatherLoadedState(weather));
+    } catch (e) {
+      emit(WeatherErrorState(e.toString()));
+    }
   }
 }
