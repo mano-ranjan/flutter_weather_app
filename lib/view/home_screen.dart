@@ -16,6 +16,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Add a refresh indicator state
+  bool _isRefreshing = false;
+
   @override
   void initState() {
     super.initState();
@@ -26,6 +29,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // appBar: AppBar(
+      //   elevation: 0,
+      //   backgroundColor: Colors.transparent,
+      //   actions: [
+      //     IconButton(
+      //       icon: const Icon(Icons.refresh, color: Colors.white),
+      //       onPressed: () {
+      //         // Manually trigger a refresh
+      //         context.read<WeatherBloc>().add(RefreshWeatherTimerEvent());
+      //       },
+      //     ),
+      //   ],
+      // ),
       body: BlocListener<LocationBloc, LocationState>(
         listener: (context, locationState) {
           if (locationState is LocationLoaded) {
@@ -46,7 +62,19 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
         },
-        child: BlocBuilder<WeatherBloc, WeatherState>(
+        child: BlocConsumer<WeatherBloc, WeatherState>(
+          listener: (context, weatherState) {
+            // Track when a refresh happens
+            if (weatherState is WeatherLoadingState) {
+              setState(() {
+                _isRefreshing = true;
+              });
+            } else {
+              setState(() {
+                _isRefreshing = false;
+              });
+            }
+          },
           builder: (context, weatherState) {
             // Determine which weather scene to show based on weather condition
             WeatherScene weatherScene = _getWeatherSceneFromState(weatherState);
@@ -64,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ) {
                     return FadeTransition(opacity: animation, child: child);
                   },
-                  child: Container(
+                  child: SizedBox(
                     key: ValueKey<WeatherScene>(
                       weatherScene,
                     ), // Key is important for the animation
@@ -84,64 +112,105 @@ class _HomeScreenState extends State<HomeScreen> {
                 BlocBuilder<LocationBloc, LocationState>(
                   builder: (context, locationState) {
                     return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (locationState is LocationLoading ||
-                              weatherState is WeatherLoadingState)
-                            const CircularProgressIndicator(
-                              color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 100),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            SizedBox(height: 50),
+                            Text(
+                              weatherScene.name,
+                              style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black45,
+                                    blurRadius: 8,
+                                    offset: Offset(2, 2),
+                                  ),
+                                ],
+                              ),
                             ),
-                          const SizedBox(height: 16),
+                            if (locationState is LocationLoading ||
+                                weatherState is WeatherLoadingState)
+                              const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            const SizedBox(height: 16),
 
-                          // Location name
-                          Text(
-                            _getCityText(locationState, weatherState),
-                            style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black45,
-                                  blurRadius: 8,
-                                  offset: Offset(2, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Coordinates display
-                          if (locationState is LocationLoaded)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                "Lat: ${locationState.position.latitude.toStringAsFixed(4)}, Long: ${locationState.position.longitude.toStringAsFixed(4)}",
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black45,
-                                      blurRadius: 8,
-                                      offset: Offset(1, 1),
-                                    ),
-                                  ],
-                                ),
+                            // Location name
+                            Text(
+                              _getCityText(locationState, weatherState),
+                              style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black45,
+                                    blurRadius: 8,
+                                    offset: Offset(2, 2),
+                                  ),
+                                ],
                               ),
                             ),
 
-                          const SizedBox(height: 24),
+                            // Coordinates display
+                            if (locationState is LocationLoaded)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(
+                                  "Lat: ${locationState.position.latitude.toStringAsFixed(4)}, Long: ${locationState.position.longitude.toStringAsFixed(4)}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black45,
+                                        blurRadius: 8,
+                                        offset: Offset(1, 1),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
 
-                          // Weather data display when loaded
-                          if (weatherState is WeatherLoadedState) ...[
-                            _buildWeatherInfo(weatherState),
+                            const SizedBox(height: 24),
+
+                            // Weather data display when loaded
+                            if (weatherState is WeatherLoadedState) ...[
+                              _buildWeatherInfo(weatherState),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     );
                   },
                 ),
+
+                // Optional - add a subtle refresh indicator in the corner
+                if (_isRefreshing)
+                  Positioned(
+                    top: 40,
+                    right: 20,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -219,6 +288,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 Icons.air,
               ),
             ],
+          ),
+          // Add last updated info
+          Padding(
+            padding: const EdgeInsets.only(top: 12.0),
+            child: Text(
+              'Last updated: ${state.weather.current.lastUpdated}',
+              style: const TextStyle(fontSize: 12, color: Colors.white70),
+            ),
           ),
         ],
       ),

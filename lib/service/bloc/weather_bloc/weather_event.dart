@@ -29,3 +29,5 @@ class FetchWeatherByCoordinatesEvent extends WeatherEvent {
 }
 
 class FetchWeatherEvent extends WeatherEvent {}
+
+class RefreshWeatherTimerEvent extends WeatherEvent {}
