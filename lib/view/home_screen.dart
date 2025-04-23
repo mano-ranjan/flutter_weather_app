@@ -53,12 +53,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
             return Stack(
               children: [
-                // Weather animation background
-                WrapperScene.weather(
-                  scene: weatherScene,
-                  sizeCanvas: Size(
-                    MediaQuery.of(context).size.width,
-                    MediaQuery.of(context).size.height,
+                // Animated weather scene background with fade transition
+                AnimatedSwitcher(
+                  duration: const Duration(
+                    seconds: 2,
+                  ), // Adjust duration as needed
+                  transitionBuilder: (
+                    Widget child,
+                    Animation<double> animation,
+                  ) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  child: Container(
+                    key: ValueKey<WeatherScene>(
+                      weatherScene,
+                    ), // Key is important for the animation
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.height,
+                    child: WrapperScene.weather(
+                      scene: weatherScene,
+                      sizeCanvas: Size(
+                        MediaQuery.of(context).size.width,
+                        MediaQuery.of(context).size.height,
+                      ),
+                    ),
                   ),
                 ),
 
@@ -234,6 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
     print('the state is $state');
     if (state is WeatherLoadedState) {
       final conditionCode = state.weather.current.condition.code;
+      // final conditionCode = 1066;
       final isDay = state.weather.current.isDay == 1;
 
       print('the condition code is $conditionCode');
