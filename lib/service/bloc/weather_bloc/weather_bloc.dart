@@ -51,7 +51,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
       final WeatherModel weather = await _weatherApiService.getWeatherByCity(
         event.city,
       );
-      emit(WeatherLoadedState(weather));
+      emit(WeatherLoadedState(weather, isFromSearch: true));
     } catch (e) {
       emit(WeatherErrorState(e.toString()));
     }

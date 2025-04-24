@@ -14,11 +14,12 @@ class WeatherLoadingState extends WeatherState {}
 
 class WeatherLoadedState extends WeatherState {
   final WeatherModel weather;
+  final bool isFromSearch;
 
-  const WeatherLoadedState(this.weather);
+  const WeatherLoadedState(this.weather, {this.isFromSearch = false});
 
   @override
-  List<Object?> get props => [weather];
+  List<Object?> get props => [weather, isFromSearch];
 }
 
 class WeatherErrorState extends WeatherState {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:weather_app/service/bloc/location_bloc/location_bloc.dart';
+import 'package:weather_app/service/bloc/search_bloc/search_bloc.dart';
 import 'package:weather_app/service/bloc/weather_bloc/weather_bloc.dart';
 import 'package:weather_app/view/home_screen.dart';
 
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
       providers: [
         BlocProvider(create: (context) => WeatherBloc()),
         BlocProvider(create: (context) => LocationBloc()),
+        BlocProvider(create: (context) => SearchBloc()),
       ],
       child: MaterialApp(
         title: 'Weather App',

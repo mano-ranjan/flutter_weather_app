@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_floating_search_bar_2/material_floating_search_bar_2.dart';
 import 'package:weather_app/service/bloc/location_bloc/location_bloc.dart';
 import 'package:weather_app/service/bloc/location_bloc/location_event.dart';
 import 'package:weather_app/service/bloc/location_bloc/location_state.dart';
+import 'package:weather_app/service/bloc/search_bloc/search_bloc.dart';
+import 'package:weather_app/service/bloc/search_bloc/search_state.dart';
 import 'package:weather_app/service/bloc/weather_bloc/weather_bloc.dart';
 import 'package:weather_app/service/bloc/weather_bloc/weather_event.dart';
 import 'package:weather_app/service/bloc/weather_bloc/weather_state.dart';
 import 'package:weather_animation/weather_animation.dart';
+import 'package:weather_app/service/utils/geo_utility.dart';
+import 'package:weather_app/service/bloc/search_bloc/search_event.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,36 +21,29 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Add a refresh indicator state
+  final FloatingSearchBarController _searchController =
+      FloatingSearchBarController();
   bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
-    // Dispatch the location event
     context.read<LocationBloc>().add(GetUserLocationEvent());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   elevation: 0,
-      //   backgroundColor: Colors.transparent,
-      //   actions: [
-      //     IconButton(
-      //       icon: const Icon(Icons.refresh, color: Colors.white),
-      //       onPressed: () {
-      //         // Manually trigger a refresh
-      //         context.read<WeatherBloc>().add(RefreshWeatherTimerEvent());
-      //       },
-      //     ),
-      //   ],
-      // ),
+      resizeToAvoidBottomInset: false,
       body: BlocListener<LocationBloc, LocationState>(
         listener: (context, locationState) {
           if (locationState is LocationLoaded) {
-            // When location is loaded, fetch weather data
             context.read<WeatherBloc>().add(
               FetchWeatherByCoordinatesEvent(
                 latitude: locationState.position.latitude,
@@ -64,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: BlocConsumer<WeatherBloc, WeatherState>(
           listener: (context, weatherState) {
-            // Track when a refresh happens
             if (weatherState is WeatherLoadingState) {
               setState(() {
                 _isRefreshing = true;
@@ -76,26 +73,21 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
           builder: (context, weatherState) {
-            // Determine which weather scene to show based on weather condition
-            WeatherScene weatherScene = _getWeatherSceneFromState(weatherState);
+            WeatherScene weatherScene = getWeatherSceneFromState(weatherState);
 
             return Stack(
               children: [
-                // Animated weather scene background with fade transition
+                // Weather animation background
                 AnimatedSwitcher(
-                  duration: const Duration(
-                    seconds: 2,
-                  ), // Adjust duration as needed
+                  duration: const Duration(seconds: 2),
                   transitionBuilder: (
                     Widget child,
                     Animation<double> animation,
                   ) {
                     return FadeTransition(opacity: animation, child: child);
                   },
-                  child: SizedBox(
-                    key: ValueKey<WeatherScene>(
-                      weatherScene,
-                    ), // Key is important for the animation
+                  child: Container(
+                    key: ValueKey<WeatherScene>(weatherScene),
                     width: MediaQuery.of(context).size.width,
                     height: MediaQuery.of(context).size.height,
                     child: WrapperScene.weather(
@@ -108,31 +100,123 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // Location and weather data display
-                BlocBuilder<LocationBloc, LocationState>(
-                  builder: (context, locationState) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 100),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            SizedBox(height: 50),
-                            Text(
-                              weatherScene.name,
-                              style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black45,
-                                    blurRadius: 8,
-                                    offset: Offset(2, 2),
+                // Search bar
+                FloatingSearchBar(
+                  controller: _searchController,
+                  hint: 'Search city...',
+                  scrollPadding: const EdgeInsets.only(top: 16, bottom: 56),
+                  transitionDuration: const Duration(milliseconds: 800),
+                  transitionCurve: Curves.easeInOut,
+                  physics: const BouncingScrollPhysics(),
+                  axisAlignment: 0.0,
+                  openAxisAlignment: 0.0,
+                  width: 600,
+                  debounceDelay: const Duration(milliseconds: 500),
+                  onQueryChanged: (query) {
+                    // Call API when user finishes typing
+                  },
+                  onSubmitted: (query) {
+                    // Call the searchCity event when user submits query
+                    if (query.trim().isNotEmpty) {
+                      context.read<WeatherBloc>().add(
+                        SearchCityEvent(city: query.trim()),
+                      );
+                      _searchController.close();
+                    }
+                  },
+                  transition: CircularFloatingSearchBarTransition(),
+                  actions: [
+                    FloatingSearchBarAction(
+                      showIfOpened: false,
+                      child: CircularButton(
+                        icon: const Icon(Icons.place),
+                        onPressed: () {
+                          // Trigger getting current location again
+                          context.read<LocationBloc>().add(
+                            GetUserLocationEvent(),
+                          );
+                        },
+                      ),
+                    ),
+                    FloatingSearchBarAction.searchToClear(showIfClosed: false),
+                  ],
+                  builder: (context, transition) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Material(
+                        color: Colors.white,
+                        elevation: 4,
+                        child: BlocBuilder<SearchBloc, SearchState>(
+                          builder: (context, historyState) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Current search
+                                if (_searchController.query.isNotEmpty)
+                                  ListTile(
+                                    leading: const Icon(Icons.search),
+                                    title: Text(_searchController.query),
+                                    onTap: () {
+                                      context.read<WeatherBloc>().add(
+                                        SearchCityEvent(
+                                          city: _searchController.query,
+                                        ),
+                                      );
+                                      context.read<SearchBloc>().add(
+                                        AddSearchQueryEvent(
+                                          _searchController.query,
+                                        ),
+                                      );
+                                      _searchController.close();
+                                    },
                                   ),
-                                ],
-                              ),
-                            ),
+
+                                // Search history
+                                ...historyState.searchHistory.map(
+                                  (query) => ListTile(
+                                    leading: const Icon(Icons.history),
+                                    title: Text(query),
+                                    onTap: () {
+                                      _searchController.query = query;
+                                      context.read<WeatherBloc>().add(
+                                        SearchCityEvent(city: query),
+                                      );
+                                      _searchController.close();
+                                    },
+                                  ),
+                                ),
+
+                                // Clear history button if there's any history
+                                if (historyState.searchHistory.isNotEmpty)
+                                  ListTile(
+                                    leading: const Icon(Icons.clear_all),
+                                    title: const Text('Clear History'),
+                                    onTap: () {
+                                      context.read<SearchBloc>().add(
+                                        ClearSearchHistoryEvent(),
+                                      );
+                                    },
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // Main content
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: 80,
+                  ), // Add space for search bar
+                  child: BlocBuilder<LocationBloc, LocationState>(
+                    builder: (context, locationState) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
                             if (locationState is LocationLoading ||
                                 weatherState is WeatherLoadingState)
                               const CircularProgressIndicator(
@@ -157,8 +241,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
 
-                            // Coordinates display
-                            if (locationState is LocationLoaded)
+                            // Show coordinates only if not a search result
+                            if (locationState is LocationLoaded &&
+                                !(weatherState is WeatherLoadedState &&
+                                    weatherState.isFromSearch))
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: Text(
@@ -185,15 +271,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ],
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
 
-                // Optional - add a subtle refresh indicator in the corner
+                // Optional refresh indicator
                 if (_isRefreshing)
                   Positioned(
-                    top: 40,
+                    top: 100, // Position below search bar
                     right: 20,
                     child: Container(
                       padding: const EdgeInsets.all(8),
@@ -322,67 +408,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
-  }
-
-  // Determine which weather scene to show based on weather state and condition code
-  WeatherScene _getWeatherSceneFromState(WeatherState state) {
-    print('the state is $state');
-    if (state is WeatherLoadedState) {
-      final conditionCode = state.weather.current.condition.code;
-      // final conditionCode = 1066;
-      final isDay = state.weather.current.isDay == 1;
-
-      print('the condition code is $conditionCode');
-
-      // Map condition codes to available WeatherScene enum values
-
-      // Clear conditions (1000-1003)
-      if (conditionCode >= 1000 && conditionCode <= 1003) {
-        return isDay ? WeatherScene.scorchingSun : WeatherScene.sunset;
-      }
-      // Partly cloudy, cloudy (1004-1009)
-      else if (conditionCode >= 1004 && conditionCode <= 1009) {
-        return WeatherScene.sunset;
-      }
-      // Mist, fog, other visibility issues (1030-1039)
-      else if (conditionCode >= 1030 && conditionCode <= 1039) {
-        return WeatherScene.rainyOvercast;
-      }
-      // Rain conditions (1063-1069, 1180-1199, 1240-1249)
-      else if ((conditionCode >= 1063 && conditionCode <= 1069) ||
-          (conditionCode >= 1180 && conditionCode <= 1199) ||
-          (conditionCode >= 1240 && conditionCode <= 1249)) {
-        return WeatherScene.rainyOvercast;
-      }
-      // Heavy rain, stormy conditions (1200-1246, 1273-1282)
-      else if ((conditionCode >= 1200 && conditionCode <= 1246) ||
-          (conditionCode >= 1273 && conditionCode <= 1282)) {
-        return WeatherScene.stormy;
-      }
-      // Snow, sleet, ice (1066, 1069, 1114-1117, 1210-1237, 1250-1264)
-      else if (conditionCode == 1066 ||
-          conditionCode == 1069 ||
-          (conditionCode >= 1114 && conditionCode <= 1117) ||
-          (conditionCode >= 1210 && conditionCode <= 1237) ||
-          (conditionCode >= 1250 && conditionCode <= 1264)) {
-        return WeatherScene.snowfall;
-      }
-      // Sleet, mixed precipitation (1069, 1249, 1252)
-      else if (conditionCode == 1069 ||
-          conditionCode == 1249 ||
-          conditionCode == 1252) {
-        return WeatherScene.showerSleet;
-      }
-      // Freezing rain/drizzle (1072, 1168, 1171)
-      else if (conditionCode == 1072 ||
-          conditionCode == 1168 ||
-          conditionCode == 1171) {
-        return WeatherScene.frosty;
-      }
-    }
-
-    // Default scene for initial state or unsupported conditions
-    return WeatherScene.frosty;
   }
 
   // Get appropriate location text based on state
